@@ -1,24 +1,48 @@
 # ============================================================
 # Chinese-learning Telegram bot — изолированный Docker-стек.
 #
+# Режим: LONG POLLING (без HTTPS/домена).
+# Бот сам опрашивает Telegram — открытые порты НЕ НУЖНЫ.
+#
 # Безопасность для вашего сервера:
-#  • Каждый контейнер имеет ЖЁСТКИЙ лимит RAM (mem_limit).
-#     → бот никогда не заберёт память у других ваших сервисов.
-#  • Внешне доступен ТОЛЬКО порт 8000. Ничего больше не открывается.
-#  • Всё лежит в одном месте (volume pgdata). Удалить полностью:
-#       docker compose down -v
+#  • ЖЁСТКИЙ лимит RAM на каждом контейнере (mem_limit).
+#  • Никаких открытых портов наружу вообще.
+#  • Полное удаление без следа: docker compose down -v
 # ============================================================
 
 services:
-  # --- Основное приложение (бот + вебхук) ---
-  app:
-    build: .
-    container_name: chinese_app
+  # --- База данных PostgreSQL ---
+  db:
+    image: postgres:16-alpine
+    container_name: chinese_db
     restart: unless-stopped
-    ports:
-      - "8000:8000"
-    mem_limit: 200m          # ← жёсткий потолок RAM
-    cpus: 0.5                # ← половина ядра максимум
+    mem_limit: 150m
+    environment:
+      POSTGRES_DB: chinese_learn
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # --- Бот (long polling: сам опрашивает Telegram) ---
+  poller:
+    build: .
+    container_name: chinese_poller
+    restart: unless-stopped
+    mem_limit: 200m
+    cpus: 0.5
+    # Ждём БД → миграции → сид → запускаем polling.
+    entrypoint: []
+    command: >
+      sh -c "until pg_isready -h db -U postgres; do sleep 1; done
+      && php artisan migrate --force
+      && php artisan db:seed --force
+      && exec php artisan nutgram:run"
     environment:
       DB_CONNECTION: pgsql
       DB_HOST: db
@@ -30,38 +54,20 @@ services:
       APP_ENV: production
       APP_DEBUG: "false"
       APP_KEY: ${APP_KEY:?APP_KEY must be set}
-      APP_URL: ${APP_URL:?APP_URL must be set}
-      # На VPS за границей api.telegram.org доступен напрямую → прокси не нужен.
+      APP_URL: ${APP_URL:-http://213.176.65.134:8000}
       TELEGRAM_PROXY: ""
     depends_on:
       db:
         condition: service_healthy
 
-  # --- База данных PostgreSQL ---
-  db:
-    image: postgres:16-alpine
-    container_name: chinese_db
-    restart: unless-stopped
-    mem_limit: 150m          # ← жёсткий потолок RAM
-    environment:
-      POSTGRES_DB: chinese_learn
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
-    volumes:
-      - pgdata:/var/lib/postgresql/data   # данные переживают перезапуск
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  # --- Воркер очереди (рассылка «слово дня») ---
+  # --- Воркер очереди (рассылка «слова дня») ---
   worker:
     build: .
     container_name: chinese_worker
     restart: unless-stopped
+    mem_limit: 100m
     command: php artisan queue:work --tries=1 --timeout=60
-    mem_limit: 100m          # ← жёсткий потолок RAM
+    entrypoint: []
     environment:
       DB_CONNECTION: pgsql
       DB_HOST: db
