@@ -40,10 +40,10 @@ $bot->onCallbackQueryData(Menu::CALLBACK_DAILY, [MenuHandler::class, 'dispatch']
 |--------------------------------------------------------------------------
 */
 
-// Reveal the back side: "card:flip:{id}" — Nutgram matches by prefix.
-$bot->onCallbackQueryData('card:flip:', [CardHandler::class, 'flip']);
+// Reveal the back side: "card:flip:{id}" — Nutgram matches via named params.
+$bot->onCallbackQueryData('card:flip:{id}', [CardHandler::class, 'flip']);
 // Apply a recall grade: "card:grade:{id}:{quality}"
-$bot->onCallbackQueryData('card:grade:', [CardHandler::class, 'grade']);
+$bot->onCallbackQueryData('card:grade:{id}:{quality}', [CardHandler::class, 'grade']);
 // Show the next card.
 $bot->onCallbackQueryData('card:next', [CardHandler::class, 'next']);
 
@@ -54,7 +54,7 @@ $bot->onCallbackQueryData('card:next', [CardHandler::class, 'next']);
 */
 
 // Pick an option: "quiz:answer:{answerId}:{chosenId}"
-$bot->onCallbackQueryData('quiz:answer:', [QuizHandler::class, 'answer']);
+$bot->onCallbackQueryData('quiz:answer:{answerId}:{chosenId}', [QuizHandler::class, 'answer']);
 // Next question.
 $bot->onCallbackQueryData('quiz:next', [QuizHandler::class, 'next']);
 
