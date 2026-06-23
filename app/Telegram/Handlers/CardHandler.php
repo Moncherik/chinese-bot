@@ -44,9 +44,6 @@ class CardHandler
         $word = $next['word'];
         $tag = $next['isNew'] ? '🆕 Новое слово' : '🔁 Повторение';
 
-        // Remember the card between front-flip and grading.
-        $bot->setUserData('card.user_word_id', $userWord->id);
-
         $text = "{$tag}\n\n"
               . "<b>{$word->hieroglyph}</b>\n"
               . "<i>HSK {$word->hsk_level}</i>\n\n"
@@ -65,12 +62,13 @@ class CardHandler
      */
     public function flip(Nutgram $bot): void
     {
+        $bot->answerCallbackQuery();
         // callback data is "card:flip:{id}"
         $userWordId = (int) (explode(':', $bot->callbackQuery()->data)[2] ?? 0);
         $userWord = UserWord::with('word')->find($userWordId);
 
         if (!$userWord) {
-            $bot->answerCallbackQuery(text: 'Карточка устарела.');
+            $bot->sendMessage('Карточка устарела. Открой новую через /cards.');
             return;
         }
 
