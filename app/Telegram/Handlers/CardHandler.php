@@ -6,6 +6,7 @@ use App\Models\UserWord;
 use App\Services\BotUserService;
 use App\Services\CardService;
 use App\Services\SpacedRepetition;
+use App\Services\TextToSpeechService;
 use App\Telegram\Menu;
 use SergiX44\Nutgram\Nutgram;
 use SergiX44\Nutgram\Telegram\Types\Keyboard\InlineKeyboardButton;
@@ -17,6 +18,7 @@ class CardHandler
         private readonly BotUserService $users,
         private readonly CardService $cards,
         private readonly SpacedRepetition $srs,
+        private readonly TextToSpeechService $tts,
     ) {
     }
 
@@ -89,8 +91,41 @@ class CardHandler
                     InlineKeyboardButton::make('🙂 Вспомнил', callback_data: "card:grade:{$userWord->id}:4"),
                     InlineKeyboardButton::make('😎 Легко', callback_data: "card:grade:{$userWord->id}:5"),
                 )
+                ->addRow(InlineKeyboardButton::make('🔊 Произнести', callback_data: "card:say:{$userWord->id}"))
                 ->addRow(InlineKeyboardButton::make('⏭ Дальше', callback_data: 'card:next')),
         );
+    }
+
+    /**
+     * Send a voice message with the Mandarin pronunciation.
+     */
+    public function pronounce(Nutgram $bot): void
+    {
+        $parts = explode(':', $bot->callbackQuery()->data);
+        $userWordId = (int) (end($parts) ?: 0);
+        $userWord = UserWord::with('word')->find($userWordId);
+
+        if (!$userWord) {
+            $bot->answerCallbackQuery(text: 'Карточка не найдена.');
+            return;
+        }
+
+        $text = $userWord->word->hieroglyph;
+        $file = $this->tts->synthesizeMandarin($text);
+
+        if (!$file) {
+            $bot->answerCallbackQuery(text: 'Не удалось получить озвучку, попробуй позже.');
+            return;
+        }
+
+        $bot->sendVoice(
+            voice: new \SergiX44\Nutgram\Telegram\Types\Internal\InputFile(
+                fopen($file, 'rb'),
+                basename($file),
+            ),
+            caption: "🔊 {$text} — {$userWord->word->pinyin}",
+        );
+        $bot->answerCallbackQuery();
     }
 
     /**

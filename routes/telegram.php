@@ -46,6 +46,8 @@ $bot->onCallbackQueryData('card:flip:{id}', [CardHandler::class, 'flip']);
 $bot->onCallbackQueryData('card:grade:{id}:{quality}', [CardHandler::class, 'grade']);
 // Show the next card.
 $bot->onCallbackQueryData('card:next', [CardHandler::class, 'next']);
+// Pronounce the card.
+$bot->onCallbackQueryData('card:say:{id}', [CardHandler::class, 'pronounce']);
 
 /*
 |--------------------------------------------------------------------------
